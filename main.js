@@ -1,7 +1,7 @@
 import { loadMonaco } from "./lexius/assets/scripts/monacoLoader.js";
 import { monaco } from "./lexius/assets/scripts/monaco.js";
 import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
-import { compileAndReturnOutput } from "https://esm.sh/neutronium@3.2.6/es2022/sandbox.mjs";
+import { compileAndReturnOutput } from "https://esm.sh/neutronium@3.3.0/es2022/sandbox.mjs";
 
 const neutronium = { compileAndReturnOutput }
 
@@ -30,7 +30,7 @@ export async function createEditor(container, lang, theme, code) {
 
     idList.push(id);
     window.currentId = id;
-    if (isMonacoLoaded === false) {
+    if (isMonacoLoaded === false && !window.editorInstance) {
         await loadMonaco();
         isMonacoLoaded = true;
     }
@@ -43,8 +43,8 @@ export async function createEditor(container, lang, theme, code) {
         newContainer.style.height = "400px";
         newContainer.style.overflow = "scroll";
         newContainer.style.width = "50%";
-        container.appendChild(iframe);
         container.appendChild(newContainer);
+        container.appendChild(iframe);
         monaco(newContainer, lang, code, theme);
         }
     catch (err) {
@@ -55,7 +55,6 @@ export async function createEditor(container, lang, theme, code) {
 
 export async function runCode(code, lang, container) {
     let terminalDisplay = container;
-    let iframe
     if (!supportedLangs.includes(lang)) return;
     if (!Array.isArray(supportedLangs)) return;
     let id;
@@ -105,7 +104,9 @@ export async function runCode(code, lang, container) {
             if (lang === "markdown") {
                 code = marked.parse(code)
             }
-            const iframe = document.querySelector(`#iframe-${window.currentId}`);
+            const iframe = document.querySelector(`#iframe-${id}`);
+            
+            console.log("going to use iframe.srcdoc = code;");
             iframe.srcdoc = code;
         }
         catch (err) {
@@ -114,7 +115,15 @@ export async function runCode(code, lang, container) {
     }
 }
 
-export function runNeutronium(code) {
+export async function runNeutronium(code, container, theme) {
     let newCode = neutronium.compileAndReturnOutput(code);
-    runCode(newCode, 'html');
+    console.log(newCode);
+
+    let iframe = document.querySelector(`#iframe-${window.currentId}`);
+    iframe.remove()
+    iframe = document.createElement('iframe');
+    iframe.id = `iframe-${window.currentId}`;
+    container.appendChild(iframe);
+    console.log("going to use iframe.srcdoc = code;");
+    iframe.srcdoc = newCode;
 }

@@ -1,6 +1,6 @@
 {
-  "name": "@lexius/api",
-  "version": "1.0.0",
+  "name": "@pfmcodes/lexius-api",
+  "version": "1.0.1",
   "description": "Official api of lexius",
   "keywords": [
     "api"
