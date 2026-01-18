@@ -105,8 +105,6 @@ export async function runCode(code, lang, container) {
                 code = marked.parse(code)
             }
             const iframe = document.querySelector(`#iframe-${id}`);
-            
-            console.log("going to use iframe.srcdoc = code;");
             iframe.srcdoc = code;
         }
         catch (err) {
@@ -117,13 +115,11 @@ export async function runCode(code, lang, container) {
 
 export async function runNeutronium(code, container, theme) {
     let newCode = neutronium.compileAndReturnOutput(code);
-    console.log(newCode);
 
     let iframe = document.querySelector(`#iframe-${window.currentId}`);
     iframe.remove()
     iframe = document.createElement('iframe');
     iframe.id = `iframe-${window.currentId}`;
     container.appendChild(iframe);
-    console.log("going to use iframe.srcdoc = code;");
     iframe.srcdoc = newCode;
 }
