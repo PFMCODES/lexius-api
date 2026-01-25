@@ -1,125 +1,159 @@
+// ===============================
+// Imports
+// ===============================
 import { loadMonaco } from "./lexius/assets/scripts/monacoLoader.js";
 import { monaco } from "./lexius/assets/scripts/monaco.js";
-import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
-import { compileAndReturnOutput } from "https://esm.sh/neutronium@3.3.0/es2022/sandbox.mjs";
+import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
+import { compile } from "https://esm.sh/neutronium@3.4.0/es2022/sandbox.mjs";
 
-const neutronium = { compileAndReturnOutput }
+// ===============================
+// Neutronium (default engine)
+// ===============================
+export const neutronium = {
+  compile
+};
 
-let supportedLangs = [
+// ===============================
+// Lexius API Runtime
+// (host framework, not core engine)
+// ===============================
+export const lexius = {
+  supportedLangs: Object.freeze([
     "html",
     "svg",
     "markdown",
     "javascript",
     "typescript",
     "python"
-];
-let isMonacoLoaded = false;
-let min = 0;
-let max = 999;
-let idList = [];
+  ]),
 
+  isMonacoLoaded: false,
+  min: 0,
+  max: 999,
+  idList: [],
+  currentId: null
+};
+
+// ===============================
+// Utilities
+// ===============================
 function generateId() {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(
+    Math.random() * (lexius.max - lexius.min + 1)
+  ) + lexius.min;
 }
 
-export async function createEditor(container, lang, theme, code) {
-    let id;
-    do {
-        id = generateId();
-    } while (idList.includes(id));
+// ===============================
+// Editor
+// ===============================
+lexius.createEditor = async function ( container, lang, theme, code, themeLight, themeDark) {
+  let id;
+  do {
+    id = generateId();
+  } while (lexius.idList.includes(id));
 
-    idList.push(id);
-    window.currentId = id;
-    if (isMonacoLoaded === false && !window.editorInstance) {
-        await loadMonaco();
-        isMonacoLoaded = true;
+  lexius.idList.push(id);
+  lexius.currentId = id;
+
+  if (!lexius.isMonacoLoaded && !window.editorInstance) {
+    await loadMonaco();
+    lexius.isMonacoLoaded = true;
+  }
+
+  const editorContainer = document.createElement("div");
+  editorContainer.id = `editor-${id}`;
+  editorContainer.style.height = "400px";
+  editorContainer.style.width = "50%";
+  editorContainer.style.overflow = "auto";
+
+  const iframe = document.createElement("iframe");
+  iframe.id = `iframe-${id}`;
+  iframe.setAttribute("sandbox", "allow-scripts");
+  iframe.style.width = "50%";
+  iframe.style.height = "400px";
+
+  container.appendChild(editorContainer);
+  container.appendChild(iframe);
+
+  monaco(editorContainer, lang, code, theme, themeLight, themeDark);
+  return id;
+};
+
+// ===============================
+// Run Normal Code
+// ===============================
+lexius.runCode = async function (code, lang, outputContainer) {
+  if (!lexius.supportedLangs.includes(lang)) return;
+
+  const id = lexius.currentId;
+
+  if (lang === "markdown") {
+    const iframe = document.querySelector(`#iframe-${id}`);
+    iframe.srcdoc = marked.parse(code);
+    return;
+  }
+
+  if (lang === "html" || lang === "svg") {
+    const iframe = document.querySelector(`#iframe-${id}`);
+    iframe.srcdoc = code;
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      "https://lexius-transpiler.onrender.com/run",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, lang })
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(`Server error ${res.status}`);
     }
-    try {
-        const newContainer = document.createElement("div")
-        newContainer.id = id;
-        const iframe = document.createElement("iframe");
-        iframe.id = `iframe-${id}`;
-        iframe.setAttribute('sandbox', 'allow-scripts');
-        newContainer.style.height = "400px";
-        newContainer.style.overflow = "scroll";
-        newContainer.style.width = "50%";
-        container.appendChild(newContainer);
-        container.appendChild(iframe);
-        monaco(newContainer, lang, code, theme);
-        }
-    catch (err) {
-        throw err;
-    }
-    return id;
-}
 
-export async function runCode(code, lang, container) {
-    let terminalDisplay = container;
-    if (!supportedLangs.includes(lang)) return;
-    if (!Array.isArray(supportedLangs)) return;
-    let id;
-    do {
-        id = generateId();
-    } while (idList.includes(id));
-    if (lang !== 'html' && lang !== 'markdown' && lang !== 'svg') {
-        try {
-            const res = await fetch(
-                "https://lexius-transpiler.onrender.com/run",
-                {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ code, lang }),
-                }
-            );
+    const data = await res.json();
+    const exec = data.result ?? {};
 
-            if (!res.ok) {
-                throw new Error(`Server error: ${res.status}`);
-            }
+    const output = [
+      exec.stdout,
+      exec.stderr,
+      exec.result
+    ].filter(Boolean).join("\n");
 
-            const data = await res.json();
+    outputContainer.textContent = output;
+  } catch (err) {
+    outputContainer.textContent = "Error: " + err.message;
+  }
+};
 
-            const exec = data.result ?? {};
+// ===============================
+// Run Neutronium (JSX / framework)
+// ===============================
+lexius.runNeutronium = function (code, container) {
+  const html = neutronium.compile(code);
 
-            const stdout = exec.stdout ?? "";
-            const stderr = exec.stderr ?? "";
-            const result =
-                exec.result !== undefined && exec.result !== null
-                ? String(exec.result)
-                : "";
+  let iframe = document.querySelector(
+    `#iframe-${lexius.currentId}`
+  );
 
-            const output = [stdout, stderr, result]
-                .filter(Boolean)
-                .join("\n");
+  iframe.remove();
 
-            terminalDisplay.innerHTML += `lexius ${document.getElementsByClassName("selected")[0].textContent}<p id="run-${id}"></p> $`;
-            document.querySelector(`#run-${id}`).textContent = output;
-        } catch (err) {
-            terminalDisplay.textContent = "Error: " + (err.message || err);
-        }
-    } 
-    else {
-        try {
-            if (lang === "markdown") {
-                code = marked.parse(code)
-            }
-            const iframe = document.querySelector(`#iframe-${id}`);
-            iframe.srcdoc = code;
-        }
-        catch (err) {
-            throw err;
-        }
-    }
-}
+  iframe = document.createElement("iframe");
+  iframe.id = `iframe-${lexius.currentId}`;
+  iframe.setAttribute("sandbox", "allow-scripts");
+  iframe.style.width = "50%";
+  iframe.style.height = "400px";
 
-export async function runNeutronium(code, container, theme) {
-    let newCode = neutronium.compileAndReturnOutput(code);
+  container.appendChild(iframe);
+  iframe.srcdoc = html;
+};
 
-    let iframe = document.querySelector(`#iframe-${window.currentId}`);
-    iframe.remove()
-    iframe = document.createElement('iframe');
-    iframe.id = `iframe-${window.currentId}`;
-    container.appendChild(iframe);
-    iframe.srcdoc = newCode;
-}
+// ===============================
+// Optional: Global exposure
+// ===============================
+window.lexius = lexius;
+window.neutronium = neutronium;
+
+export default lexius;

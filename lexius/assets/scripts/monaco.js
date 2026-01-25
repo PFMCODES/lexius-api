@@ -1,6 +1,6 @@
 let editorInstance = null;
 
-async function monaco(container, lang, eValue, theme) {
+async function monaco(container, lang, eValue, theme, themeLight, themeDark) {
   const Monaco = window.monaco;
   if (!Monaco || !window.monacoReady) {
     console.warn("Monaco is not ready yet");
@@ -12,10 +12,12 @@ async function monaco(container, lang, eValue, theme) {
     editorInstance.dispose();
     editorInstance = null;
   }
+  if (!theme) {
+    if (!themeLight && !themeDark) console.error("no themes found please provide an theme name or a custom theme"); return;
+  }
 
   // Define themes (only once)
-  if (!window.__lexiusThemesDefined) {
-
+  if (!window.__lexiusThemesDefined && !themeDark && !themeLight && theme) {
     Monaco.editor.defineTheme("lexius-dark", {
       base: "vs-dark",
       inherit: true,
@@ -29,10 +31,10 @@ async function monaco(container, lang, eValue, theme) {
       ],
 
       colors: {
-        "editor.background": "#291039",
-        "editorLineNumber.foreground": "#4B526D",
-        "editorCursor.foreground": "#7b00ffff",
-        "editor.selectionBackground": "#7e56c280",
+        "editor.background": "#111039",
+        "editorLineNumber.foreground": "#344770",
+        "editorCursor.foreground": "rgb(19, 55, 156)",
+        "editor.selectionBackground": "#2942fe80",
       }
     });
 
@@ -44,17 +46,27 @@ async function monaco(container, lang, eValue, theme) {
         { token: "string", foreground: "#FF9E64" },
         { token: "number", foreground: "#F78C6C" },
         { token: "comment", foreground: "#546E7A", fontStyle: "italic" },
-        { token: "keyword", foreground: "#d67eeeff" },
+        { token: "keyword", foreground: "rgb(126, 143, 238)" },
       ],
       colors: {
         "editor.background": "#ffffff",
-        "editorLineNumber.foreground": "#4B526D",
+        "editorLineNumber.foreground": "#8da1ef",
         "editorCursor.foreground": "#FFCC00",
-        "editor.selectionBackground": "#7e56c2"
+        "editor.selectionBackground": "#82a1fd"
       }
     });
 
     window.__lexiusThemesDefined = true;
+  }
+  else {
+    try {      
+      Monaco.editor.defineTheme(themeLight);
+      Monaco.editor.defineTheme(themeDark);
+      window.__lexiusThemesDefined = true;
+    } catch (e) {
+      console.error("Failed to define custom themes: " + e.message);
+      return;
+    }
   }
 
   // Determine theme
@@ -92,6 +104,7 @@ const prettierParsers = {
   typescript: "typescript",
   ts: "typescript",
   css: "css",
+  javascriptreact: "babel"
 };
 
 function prettifyCode() {
